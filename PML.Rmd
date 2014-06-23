@@ -1,0 +1,106 @@
+Classification Prediction with using Weight lifting data
+========================================================
+
+
+## Background
+
+
+The goal of this analysis is to predict the manner in which of the 6 participants 
+did the exercise( i.e., the "classe" variable) using data from accelerometers on the belt, forearm, arm, and dumbell of 6 participants. They were asked to perform barbell lifts correctly and incorrectly in 5 different ways.
+
+
+## Cleaning and Preparing Data
+Download data from the course website and load the data to R
+
+```{r}
+URL<-"http://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv"
+download.file(URL,destfile="training.csv")
+train = read.csv("training.csv")
+```
+
+
+
+After a quick look of the data, we find there are a lot missing values(NA, NaN and inf) in the dataset. 
+Cleaning data
+```{r echo =TRUE}
+library(caret)
+missing_index = nearZeroVar(train)
+train = train[-missing_index]
+features = which(lapply(train, class) %in% c("numeric"))
+```
+
+
+
+Divide the dataset into to parts: 70% for training and 30% for testing.
+
+
+```{r,cache=TRUE}
+train_index<-createDataPartition(y = train$classe, p=0.3,list=FALSE) 
+training<-train[train_index,]
+testing<-train[-train_index,]
+```
+
+
+
+preprocess the data
+```{r echo=TRUE}
+preProc <- preProcess(training[,features], method = "knnImpute")
+trainingProc <- predict(preProc, training[,features])
+trainingProc<- cbind( "classe" = training$classe, trainingProc)
+testingProc <- predict(preProc, testing[,features])
+testingProc <- cbind(  "classe"=testing$classe, testingProc)
+```
+
+
+
+
+
+## machine learning algorithms  
+#### random forest, building the model
+
+
+```{r echo =TRUE}
+library(randomForest)
+rf.fit <- randomForest(classe ~., data = trainingProc, ntree = 800, mtry = 20)
+
+```
+
+predict the model with the training and testing data (from the original training data)
+
+```{r echo=TRUE}
+rf.predict <- predict(rf.fit, testingProc)
+rf.table <- confusionMatrix(testingProc$classe, rf.predict)
+rf.table
+```
+
+#### lda
+```{r echo=TRUE, results='hide'}
+library(MASS)
+lda.fit <- train(classe ~ ., data = trainingProc, method = "lda")
+```
+
+predict
+```{r echo=TRUE}
+lda.predict <- predict(lda.fit, testingProc)
+lda.table <- confusionMatrix(testingProc$classe, lda.predict)
+lda.table
+```
+
+
+
+
+# Estimate Out Of Sample Error
+After comparing the accuracy reported from the above two models, random forest model is selected as the final model. 
+Apply model to the test dataset
+
+```{r eval=FALSE, echo=TRUE, results='hide'}
+test = read.csv("test.csv")
+test.predict<- predict(rf.fit, test)
+test.table<- confusionMatrix(test$classe, test.predict)
+print(test.table$overall[1])
+```
+Accuracy 
+0.9702
+
+
+So the estimated out of sample error rate is **2.98%**
